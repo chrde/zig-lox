@@ -11,7 +11,7 @@ pub fn disassembleChunk(c: Chunk, name: []const u8) void {
     }
 }
 
-fn disassembleInstruction(c: Chunk, offset: usize) usize {
+pub fn disassembleInstruction(c: Chunk, offset: usize) usize {
     std.debug.print("{d:0>4} ", .{offset});
 
     if (offset > 0 and (c.lines.items[offset] == c.lines.items[offset - 1])) {
@@ -21,18 +21,21 @@ fn disassembleInstruction(c: Chunk, offset: usize) usize {
     }
 
     var op = c.code.items[offset];
-    switch (@intToEnum(OpCode, op)) {
-        OpCode.Return => {
-            return simpleInstruction("OP_RETURN", offset);
-        },
-        OpCode.Constant => {
-            return constantInstruction("OP_CONSTANT", c, offset);
-        },
-    }
+    const result = switch (@intToEnum(OpCode, op)) {
+        OpCode.Return => simpleInstruction("OP_RETURN", offset),
+        OpCode.Constant => constantInstruction("OP_CONSTANT", c, offset),
+        OpCode.Negate => simpleInstruction("OP_NEGATE", offset),
+        OpCode.Add => simpleInstruction("OP_ADD", offset),
+        OpCode.Substract => simpleInstruction("OP_SUBSTRACT", offset),
+        OpCode.Multiply => simpleInstruction("OP_MULTIPLE", offset),
+        OpCode.Divide => simpleInstruction("OP_DIVIDE", offset),
+    };
+    std.debug.print("\n", .{});
+    return result;
 }
 
 fn simpleInstruction(comptime name: []const u8, offset: usize) usize {
-    std.debug.print("{s}\n", .{name});
+    std.debug.print("{s}", .{name});
     return offset + 1;
 }
 
@@ -41,6 +44,5 @@ fn constantInstruction(name: []const u8, c: Chunk, offset: usize) usize {
     const constant = c.constants.items[constant_idx];
     std.debug.print("{s:<12} {d:>4} ", .{ name, constant_idx });
     value.printValue(constant);
-    std.debug.print("\n", .{});
     return offset + 2;
 }

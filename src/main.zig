@@ -2,17 +2,32 @@ const std = @import("std");
 const chunk = @import("chunk.zig");
 const debug = @import("debug.zig");
 const value = @import("value.zig");
+const Vm = @import("vm.zig").Vm;
 
 pub fn main() !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     var c = chunk.Chunk.init(&arena.allocator);
 
-    const constant = try c.addConstant(1.2);
-    try c.write(@enumToInt(chunk.OpCode.Constant), 1);
-    try c.write(@enumToInt(chunk.OpCode.Return), 1);
-    try c.write(constant, 1);
-    debug.disassembleChunk(c, "test chunk");
+    const line = 1;
+
+    try c.write(@enumToInt(chunk.OpCode.Constant), line);
+    try c.write(try c.addConstant(1.2), line);
+    try c.write(@enumToInt(chunk.OpCode.Negate), line);
+
+    try c.write(@enumToInt(chunk.OpCode.Constant), line);
+    try c.write(try c.addConstant(3.4), line);
+    try c.write(@enumToInt(chunk.OpCode.Add), line);
+
+    try c.write(@enumToInt(chunk.OpCode.Constant), line);
+    try c.write(try c.addConstant(5.6), line);
+    try c.write(@enumToInt(chunk.OpCode.Divide), line);
+
+    try c.write(@enumToInt(chunk.OpCode.Return), line);
+    // debug.disassembleChunk(c, "test chunk");
+
+    var vm = try Vm.init(&arena.allocator, c);
+    try vm.interpret();
     // const args = try std.process.argsAlloc(std.testing.allocator);
     // defer std.process.argsFree(std.testing.allocator, args);
     // std.log.info("All your codebase are belong to us.", .{});

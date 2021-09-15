@@ -3,8 +3,13 @@ const Value = @import("value.zig").Value;
 const ArrayList = std.ArrayList;
 
 pub const OpCode = enum(usize) {
-    Return,
+    Add,
     Constant,
+    Divide,
+    Multiply,
+    Negate,
+    Return,
+    Substract,
 };
 
 pub const Chunk = struct {
