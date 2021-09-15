@@ -1,0 +1,3 @@
+[check]
+command=zig build
+output=quickfix
