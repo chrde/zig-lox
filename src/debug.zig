@@ -22,13 +22,13 @@ pub fn disassembleInstruction(c: Chunk, offset: usize) usize {
 
     var op = c.code.items[offset];
     const result = switch (@intToEnum(OpCode, op)) {
-        OpCode.Return => simpleInstruction("OP_RETURN", offset),
-        OpCode.Constant => constantInstruction("OP_CONSTANT", c, offset),
-        OpCode.Negate => simpleInstruction("OP_NEGATE", offset),
-        OpCode.Add => simpleInstruction("OP_ADD", offset),
-        OpCode.Substract => simpleInstruction("OP_SUBSTRACT", offset),
-        OpCode.Multiply => simpleInstruction("OP_MULTIPLE", offset),
-        OpCode.Divide => simpleInstruction("OP_DIVIDE", offset),
+        OpCode.@"return" => simpleInstruction("OP_RETURN", offset),
+        OpCode.constant => constantInstruction("OP_CONSTANT", c, offset),
+        OpCode.negate => simpleInstruction("OP_NEGATE", offset),
+        OpCode.add => simpleInstruction("OP_ADD", offset),
+        OpCode.substract => simpleInstruction("OP_SUBSTRACT", offset),
+        OpCode.multiply => simpleInstruction("OP_MULTIPLE", offset),
+        OpCode.divide => simpleInstruction("OP_DIVIDE", offset),
     };
     std.debug.print("\n", .{});
     return result;

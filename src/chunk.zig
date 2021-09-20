@@ -3,16 +3,17 @@ const Value = @import("value.zig").Value;
 const ArrayList = std.ArrayList;
 
 pub const OpCode = enum(usize) {
-    Add,
-    Constant,
-    Divide,
-    Multiply,
-    Negate,
-    Return,
-    Substract,
+    add,
+    constant,
+    divide,
+    multiply,
+    negate,
+    @"return",
+    substract,
 };
 
 pub const Chunk = struct {
+    const Self = @This();
     code: ArrayList(usize),
     constants: ArrayList(Value),
     lines: ArrayList(usize),
@@ -25,12 +26,18 @@ pub const Chunk = struct {
         };
     }
 
-    pub fn write(self: *@This(), item: usize, line: usize) !void {
-        try self.code.append(item);
-        try self.lines.append(line);
+    pub fn deinit(self: Self) void {
+        self.code.deinit();
+        self.constants.deinit();
+        self.lines.deinit();
     }
 
-    pub fn addConstant(self: *@This(), v: Value) !usize {
+    pub fn write(self: *Self, item: usize, line: usize) void {
+        self.code.append(item) catch unreachable;
+        self.lines.append(line) catch unreachable;
+    }
+
+    pub fn addConstant(self: *Self, v: Value) !usize {
         try self.constants.append(v);
         return self.constants.items.len - 1;
     }
