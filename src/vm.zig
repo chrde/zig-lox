@@ -2,7 +2,7 @@ const std = @import("std");
 const ArrayList = std.ArrayList;
 const Chunk = @import("chunk.zig").Chunk;
 const OpCode = @import("chunk.zig").OpCode;
-const value = @import("value.zig");
+const Value = @import("value.zig").Value;
 const debug = @import("debug.zig");
 const Compiler = @import("compiler.zig").Compiler;
 
@@ -13,55 +13,65 @@ pub const InterpreterError = error{
     Runtime,
 };
 
-const BinaryOp = enum { add, sub, mul, div };
+const BinaryOp = enum { add, sub, mul, div, greater, less };
 
 pub const Vm = struct {
     const Self = @This();
     chunk: Chunk = undefined,
     ip: usize = undefined,
     allocator: *std.mem.Allocator,
-    stack: ArrayList(value.Value),
+    stack: ArrayList(Value),
 
     pub fn init(allocator: *std.mem.Allocator) !Self {
         return Self{
             .allocator = allocator,
-            .stack = try ArrayList(value.Value).initCapacity(allocator, stack_max),
+            .stack = try ArrayList(Value).initCapacity(allocator, stack_max),
         };
+    }
+
+    pub fn peekStack(self: Self, depth: usize) Value {
+        return self.stack.items[self.stack.items.len - 1 - depth];
     }
 
     pub fn deinit(self: Self) void {
         self.stack.deinit();
     }
 
-    fn debug_stack(self: Self) void {
+    fn debugStack(self: Self) void {
         std.debug.print("          ", .{});
         for (self.stack.items) |x| {
             std.debug.print("[ ", .{});
-            value.printValue(x);
+            x.debug();
             std.debug.print(" ]", .{});
         }
         std.debug.print("\n", .{});
     }
 
-    fn read_byte(self: *Self) usize {
+    fn readByte(self: *Self) usize {
         const b = self.chunk.code.items[self.ip];
         self.ip += 1;
         return b;
     }
 
-    fn read_constant(self: *Self) value.Value {
-        const b = self.read_byte();
+    fn readConstant(self: *Self) Value {
+        const b = self.readByte();
         return self.chunk.constants.items[b];
     }
 
-    fn binary_op(self: *Self, op: BinaryOp) void {
-        const left = self.stack.pop();
-        const right = self.stack.pop();
+    fn binaryOp(self: *Self, op: BinaryOp) error{Runtime}!void {
+        if (!(self.peekStack(0).isNumber() and self.peekStack(1).isNumber())) {
+            return self.runtimeError("Operands must be numbers.");
+        }
+
+        const right = self.stack.pop().number;
+        const left = self.stack.pop().number;
         const result = switch (op) {
-            .add => left + right,
-            .sub => left - right,
-            .mul => left * right,
-            .div => left / right,
+            .add => Value.new(f64, left + right),
+            .sub => Value.new(f64, left - right),
+            .mul => Value.new(f64, left * right),
+            .div => Value.new(f64, left / right),
+            .greater => Value.new(bool, left > right),
+            .less => Value.new(bool, left < right),
         };
         self.stack.appendAssumeCapacity(result);
     }
@@ -81,28 +91,51 @@ pub const Vm = struct {
     pub fn run(self: *Self) error{Runtime}!void {
         while (true) {
             _ = debug.disassembleInstruction(self.chunk, self.ip);
-            self.debug_stack();
-            switch (@intToEnum(OpCode, self.read_byte())) {
+            self.debugStack();
+            switch (@intToEnum(OpCode, self.readByte())) {
                 OpCode.@"return" => {
                     std.debug.print("\nresult: ", .{});
-                    value.printValue(self.stack.pop());
+                    self.stack.pop().debug();
                     std.debug.print("\n", .{});
                     break;
                 },
                 OpCode.constant => {
-                    const constant = self.read_constant();
+                    const constant = self.readConstant();
                     self.stack.appendAssumeCapacity(constant);
-                    // std.debug.print("\n", .{});
                 },
                 OpCode.negate => {
-                    self.stack.appendAssumeCapacity(-self.stack.pop());
+                    if (self.peekStack(0).isNumber()) {
+                        const n = self.stack.pop().number;
+                        self.stack.appendAssumeCapacity(Value{ .number = -n });
+                    } else {
+                        self.runtimeError("Operand must be a number.");
+                        return error.Runtime;
+                    }
                 },
-                OpCode.add => self.binary_op(.add),
-                OpCode.substract => self.binary_op(.sub),
-                OpCode.multiply => self.binary_op(.mul),
-                OpCode.divide => self.binary_op(.div),
+                OpCode.add => try self.binaryOp(.add),
+                OpCode.substract => try self.binaryOp(.sub),
+                OpCode.multiply => try self.binaryOp(.mul),
+                OpCode.divide => try self.binaryOp(.div),
+                OpCode.greater => try self.binaryOp(.greater),
+                OpCode.less => try self.binaryOp(.less),
+                OpCode.@"true" => self.stack.appendAssumeCapacity(Value{ .bool = true }),
+                OpCode.@"false" => self.stack.appendAssumeCapacity(Value{ .bool = false }),
+                OpCode.nil => self.stack.appendAssumeCapacity(Value{ .nil = {} }),
+                OpCode.not => self.stack.appendAssumeCapacity(Value{ .bool = self.stack.pop().isFalsey() }),
+                OpCode.equal => {
+                    const right = self.stack.pop();
+                    const left = self.stack.pop();
+                    const val = Value{ .bool = left.isEqual(right) };
+                    self.stack.appendAssumeCapacity(val);
+                },
             }
         }
         return;
+    }
+
+    fn runtimeError(self: *Self, msg: []const u8) void {
+        const b = self.chunk.code.items[self.ip];
+        const line = self.chunk.lines.items[b];
+        std.debug.print("{s}\n[line {d}] in script\n", .{ msg, line });
     }
 };

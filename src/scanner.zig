@@ -64,10 +64,10 @@ pub const TokenType = enum {
 
     pub fn infix_prec(self: Self) ?Precedence {
         return switch (self) {
-            .plus => .term,
-            .minus => .term,
-            .slash => .factor,
-            .star => .factor,
+            .plus, .minus => .term,
+            .slash, .star => .factor,
+            .equal_equal => .equality,
+            .greater, .greater_equal, .less, .less_equal => .comparison,
             else => null,
         };
     }
@@ -168,7 +168,7 @@ pub const Scanner = struct {
             '+' => self.makeToken(.plus),
             '/' => self.makeToken(.slash),
             '*' => self.makeToken(.star),
-            '|' => {
+            '!' => {
                 const ty: TokenType = if (self.match('=')) .bang_equal else .bang;
                 return self.makeToken(ty);
             },
@@ -190,7 +190,7 @@ pub const Scanner = struct {
     }
 
     fn makeIdentifier(self: *Self) Token {
-        while (isAlpha(self.peek()) or isDigit(self.peek())) _ = advance;
+        while (!self.isAtEnd() and (isAlpha(self.peek()) or isDigit(self.peek()))) _ = self.advance();
         var token = self.makeToken(.identifier);
         for (TokenType.keywords()) |kw| {
             if (std.mem.eql(u8, @tagName(kw), token.lexeme)) {

@@ -10,6 +10,13 @@ pub const OpCode = enum(usize) {
     negate,
     @"return",
     substract,
+    nil,
+    not,
+    @"true",
+    @"false",
+    equal,
+    greater,
+    less,
 };
 
 pub const Chunk = struct {

@@ -1,7 +1,6 @@
 const std = @import("std");
 const Chunk = @import("chunk.zig").Chunk;
 const OpCode = @import("chunk.zig").OpCode;
-const value = @import("value.zig");
 
 pub fn disassembleChunk(c: Chunk, name: []const u8) void {
     std.debug.print("== {s} ==\n", .{name});
@@ -29,6 +28,13 @@ pub fn disassembleInstruction(c: Chunk, offset: usize) usize {
         OpCode.substract => simpleInstruction("OP_SUBSTRACT", offset),
         OpCode.multiply => simpleInstruction("OP_MULTIPLE", offset),
         OpCode.divide => simpleInstruction("OP_DIVIDE", offset),
+        OpCode.@"true" => simpleInstruction("OP_TRUE", offset),
+        OpCode.@"false" => simpleInstruction("OP_FALSE", offset),
+        OpCode.nil => simpleInstruction("OP_NIL", offset),
+        OpCode.not => simpleInstruction("OP_NOT", offset),
+        OpCode.equal => simpleInstruction("OP_EQUAL", offset),
+        OpCode.greater => simpleInstruction("OP_GREATER", offset),
+        OpCode.less => simpleInstruction("OP_LESS", offset),
     };
     std.debug.print("\n", .{});
     return result;
@@ -43,6 +49,6 @@ fn constantInstruction(name: []const u8, c: Chunk, offset: usize) usize {
     const constant_idx = c.code.items[offset + 1];
     const constant = c.constants.items[constant_idx];
     std.debug.print("{s:<12} {d:>4} ", .{ name, constant_idx });
-    value.printValue(constant);
+    constant.debug();
     return offset + 2;
 }

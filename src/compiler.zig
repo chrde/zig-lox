@@ -83,7 +83,7 @@ pub const Compiler = struct {
 
     fn number(self: *Self) void {
         const val = std.fmt.parseFloat(f64, self.previous.lexeme) catch unreachable;
-        self.emitConstant(val);
+        self.emitConstant(Value{ .number = val });
     }
 
     fn grouping(self: *Self) void {
@@ -104,14 +104,20 @@ pub const Compiler = struct {
         // NOTE(chrde): everything is left-associative
         self.parsePrecedence(@intToEnum(Precedence, @enumToInt(prec.?) + 1));
 
-        const op = switch (ty) {
-            .plus => OpCode.add,
-            .minus => OpCode.substract,
-            .slash => OpCode.multiply,
-            .star => OpCode.divide,
+        const ops: []const OpCode = switch (ty) {
+            .plus => &.{.add},
+            .minus => &.{.substract},
+            .slash => &.{.divide},
+            .star => &.{.multiply},
+            .greater => &.{.greater},
+            .greater_equal => &.{ .less, .not },
+            .equal_equal => &.{.equal},
+            .bang_equal => &.{ .equal, .not },
+            .less => &.{.less},
+            .less_equal => &.{ .greater, .not },
             else => unreachable,
         };
-        self.emitByte(@enumToInt(op));
+        self.emitOps(ops);
     }
 
     fn unary(self: *Self) void {
@@ -120,6 +126,16 @@ pub const Compiler = struct {
 
         switch (ty) {
             .minus => self.emitByte(@enumToInt(OpCode.negate)),
+            .bang => self.emitByte(@enumToInt(OpCode.not)),
+            else => unreachable,
+        }
+    }
+
+    fn literal(self: *Self) void {
+        switch (self.previous.ty) {
+            .@"false" => self.emitByte(@enumToInt(OpCode.@"false")),
+            .@"true" => self.emitByte(@enumToInt(OpCode.@"true")),
+            .nil => self.emitByte(@enumToInt(OpCode.nil)),
             else => unreachable,
         }
     }
@@ -128,8 +144,9 @@ pub const Compiler = struct {
         self.advance();
         switch (self.previous.ty) {
             .left_paren => self.grouping(),
-            .minus => self.unary(),
+            .minus, .bang => self.unary(),
             .number => self.number(),
+            .@"false", .@"true", .nil => self.literal(),
             else => return self.errorHere("Expected expression."),
         }
 
@@ -139,10 +156,7 @@ pub const Compiler = struct {
             }
             self.advance();
             switch (self.previous.ty) {
-                .plus => self.binary(),
-                .minus => self.binary(),
-                .slash => self.binary(),
-                .star => self.binary(),
+                .plus, .minus, .slash, .star, .equal_equal, .greater, .greater_equal, .less, .less_equal => self.binary(),
                 else => return self.errorHere("Invalid infix operator."),
             }
         }
@@ -175,6 +189,12 @@ pub const Compiler = struct {
 
     fn emitByte(self: *Self, byte: usize) void {
         self.chunk.write(byte, self.previous.line);
+    }
+
+    fn emitOps(self: *Self, ops: []const OpCode) void {
+        for (ops) |op| {
+            self.emitByte(@enumToInt(op));
+        }
     }
 
     fn emitBytes(self: *Self, bytes: []usize) void {
