@@ -7,7 +7,6 @@ const Chunk = @import("chunk.zig").Chunk;
 const OpCode = @import("chunk.zig").OpCode;
 const Value = @import("value.zig").Value;
 const Obj = @import("object.zig").Obj;
-const TokenType = @import("scanner.zig").TokenType;
 const d = @import("debug.zig");
 
 pub const Compiler = struct {
@@ -49,7 +48,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn consume(self: *Self, ty: TokenType, message: []const u8) void {
+    fn consume(self: *Self, ty: Token.Type, message: []const u8) void {
         if (self.current.ty != ty) {
             self.errorAtCurrent(message);
         } else {

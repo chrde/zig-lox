@@ -4,111 +4,8 @@ const Precedence = @import("compiler.zig").Precedence;
 
 const first_keyword = 40;
 
-pub const TokenType = enum {
-    const Self = @This();
-    // Single-character tokens.
-    left_paren,
-    right_paren,
-    left_brace,
-    right_brace,
-    comma,
-    dot,
-    minus,
-    plus,
-    semicolon,
-    slash,
-    star,
-    // One or two character tokens.
-    bang,
-    bang_equal,
-    equal,
-    equal_equal,
-    greater,
-    greater_equal,
-    less,
-    less_equal,
-    // Literals.
-    identifier,
-    string,
-    number,
-    // Other
-    eof,
-    // Keywords.
-    @"and" = first_keyword,
-    class,
-    @"else",
-    @"false",
-    @"for",
-    fun,
-    @"if",
-    nil,
-    @"or",
-    print,
-    @"return",
-    super,
-    this,
-    @"true",
-    @"var",
-    @"while",
-    @"error",
-
-    // const keywords1: []const TokenType = blk: {
-    //     comptime var kws: []const TokenType = &.{};
-    //     inline for (std.meta.fields(TokenType)) |f| {
-    //         if (f.value >= first_keyword) {
-    //             kws = kws ++ &[_]TokenType {@field(TokenType, f.name)};
-    //         }
-    //     }
-    //     break :blk kws;
-    // };
-
-    pub fn infix_prec(self: Self) ?Precedence {
-        return switch (self) {
-            .plus, .minus => .term,
-            .slash, .star => .factor,
-            .equal_equal => .equality,
-            .greater, .greater_equal, .less, .less_equal => .comparison,
-            else => null,
-        };
-    }
-
-    pub fn prefix_prec(self: Self) Precedence {
-        return switch (self) {
-            else => unreachable,
-        };
-    }
-
-    fn keywords() []const TokenType {
-        comptime var es: []const TokenType = &.{};
-        inline for (std.meta.fields(TokenType)) |f| {
-            if (f.value >= first_keyword) {
-                es = es ++ &[_]TokenType{@field(TokenType, f.name)};
-            }
-        }
-        return es;
-    }
-
-    // fn keywords() []const TokenType {
-    //     comptime var keyword_count: usize = 0;
-    //     inline for (std.meta.fields(TokenType)) |f| {
-    //         if (f.value >= first_keyword) {
-    //             keyword_count += 1;
-    //         }
-    //     }
-    //     const xs: [keyword_count]TokenType = undefined;
-    //     var current: usize = 0;
-    //     inline for (std.meta.fields(TokenType)) |f| {
-    //         if (f.value >= first_keyword) {
-    //             xs[current] = @field(TokenType, f.name);
-    //             current += 1;
-    //         }
-    //     }
-    //     return &xs;
-    // }
-};
-
 test "keywords" {
-    const kws = TokenType.keywords();
+    const kws = Token.Type.keywords();
     try expect(17 == kws.len);
     try expect(std.mem.eql(u8, "and", @tagName(kws[0])));
     try expect(std.mem.eql(u8, "error", @tagName(kws[16])));
@@ -116,9 +13,112 @@ test "keywords" {
 
 pub const Token = struct {
     // TODO(chrde): declare enum in here
-    ty: TokenType,
+    ty: Type,
     lexeme: []const u8,
     line: usize = 1,
+
+    pub const Type = enum {
+        const Self = @This();
+        // Single-character tokens.
+        left_paren,
+        right_paren,
+        left_brace,
+        right_brace,
+        comma,
+        dot,
+        minus,
+        plus,
+        semicolon,
+        slash,
+        star,
+        // One or two character tokens.
+        bang,
+        bang_equal,
+        equal,
+        equal_equal,
+        greater,
+        greater_equal,
+        less,
+        less_equal,
+        // Literals.
+        identifier,
+        string,
+        number,
+        // Other
+        eof,
+        // Keywords.
+        @"and" = first_keyword,
+        class,
+        @"else",
+        @"false",
+        @"for",
+        fun,
+        @"if",
+        nil,
+        @"or",
+        print,
+        @"return",
+        super,
+        this,
+        @"true",
+        @"var",
+        @"while",
+        @"error",
+
+        // const keywords1: []const Type = blk: {
+        //     comptime var kws: []const Type = &.{};
+        //     inline for (std.meta.fields(Type)) |f| {
+        //         if (f.value >= first_keyword) {
+        //             kws = kws ++ &[_]Type {@field(Type, f.name)};
+        //         }
+        //     }
+        //     break :blk kws;
+        // };
+
+        pub fn infix_prec(self: Self) ?Precedence {
+            return switch (self) {
+                .plus, .minus => .term,
+                .slash, .star => .factor,
+                .equal_equal => .equality,
+                .greater, .greater_equal, .less, .less_equal => .comparison,
+                else => null,
+            };
+        }
+
+        pub fn prefix_prec(self: Self) Precedence {
+            return switch (self) {
+                else => unreachable,
+            };
+        }
+
+        fn keywords() []const Type {
+            comptime var es: []const Type = &.{};
+            inline for (std.meta.fields(Type)) |f| {
+                if (f.value >= first_keyword) {
+                    es = es ++ &[_]Type{@field(Type, f.name)};
+                }
+            }
+            return es;
+        }
+
+        // fn keywords() []const Type {
+        //     comptime var keyword_count: usize = 0;
+        //     inline for (std.meta.fields(Type)) |f| {
+        //         if (f.value >= first_keyword) {
+        //             keyword_count += 1;
+        //         }
+        //     }
+        //     const xs: [keyword_count]Type = undefined;
+        //     var current: usize = 0;
+        //     inline for (std.meta.fields(Type)) |f| {
+        //         if (f.value >= first_keyword) {
+        //             xs[current] = @field(Type, f.name);
+        //             current += 1;
+        //         }
+        //     }
+        //     return &xs;
+        // }
+    };
 };
 
 pub const Scanner = struct {
@@ -170,19 +170,19 @@ pub const Scanner = struct {
             '/' => self.makeToken(.slash),
             '*' => self.makeToken(.star),
             '!' => {
-                const ty: TokenType = if (self.match('=')) .bang_equal else .bang;
+                const ty: Token.Type = if (self.match('=')) .bang_equal else .bang;
                 return self.makeToken(ty);
             },
             '=' => {
-                const ty: TokenType = if (self.match('=')) .equal_equal else .bang;
+                const ty: Token.Type = if (self.match('=')) .equal_equal else .bang;
                 return self.makeToken(ty);
             },
             '<' => {
-                const ty: TokenType = if (self.match('=')) .less_equal else .less;
+                const ty: Token.Type = if (self.match('=')) .less_equal else .less;
                 return self.makeToken(ty);
             },
             '>' => {
-                const ty: TokenType = if (self.match('=')) .greater_equal else .greater;
+                const ty: Token.Type = if (self.match('=')) .greater_equal else .greater;
                 return self.makeToken(ty);
             },
             '"' => self.makeString(),
@@ -193,7 +193,7 @@ pub const Scanner = struct {
     fn makeIdentifier(self: *Self) Token {
         while (!self.isAtEnd() and (isAlpha(self.peek()) or isDigit(self.peek()))) _ = self.advance();
         var token = self.makeToken(.identifier);
-        for (TokenType.keywords()) |kw| {
+        for (Token.Type.keywords()) |kw| {
             if (std.mem.eql(u8, @tagName(kw), token.lexeme)) {
                 token.ty = kw;
                 break;
@@ -279,7 +279,7 @@ pub const Scanner = struct {
         return self.current >= self.source.len;
     }
 
-    fn makeToken(self: *Self, ty: TokenType) Token {
+    fn makeToken(self: *Self, ty: Token.Type) Token {
         const token = Token{
             .ty = ty,
             .lexeme = self.source[self.start..self.current],
