@@ -3,6 +3,7 @@ const ArrayList = std.ArrayList;
 const Chunk = @import("chunk.zig").Chunk;
 const OpCode = @import("chunk.zig").OpCode;
 const Value = @import("value.zig").Value;
+const Obj = @import("object.zig").Obj;
 const debug = @import("debug.zig");
 const Compiler = @import("compiler.zig").Compiler;
 
@@ -20,6 +21,7 @@ pub const Vm = struct {
     chunk: Chunk = undefined,
     ip: usize = undefined,
     allocator: *std.mem.Allocator,
+    objects: ?*Obj = null,
     stack: ArrayList(Value),
 
     pub fn init(allocator: *std.mem.Allocator) !Self {
@@ -33,13 +35,22 @@ pub const Vm = struct {
         return self.stack.items[self.stack.items.len - 1 - depth];
     }
 
-    pub fn deinit(self: Self) void {
+    pub fn deinit(self: *Self) void {
         self.stack.deinit();
+        self.destroyObjects();
     }
 
-    fn debugStack(self: Self) void {
+    fn destroyObjects(self: *Self) void {
+        var cur = self.objects;
+        while (cur) |o| {
+            cur = o.next;
+            o.destroy(self);
+        }
+    }
+
+    fn debugStack(self: *Self) void {
         std.debug.print("          ", .{});
-        for (self.stack.items) |x| {
+        for (self.stack.items) |*x| {
             std.debug.print("[ ", .{});
             x.debug();
             std.debug.print(" ]", .{});
@@ -80,12 +91,20 @@ pub const Vm = struct {
         var chunk = Chunk.init(self.allocator);
         defer chunk.deinit();
 
-        var compiler = Compiler.init(source, &chunk);
+        var compiler = Compiler.init(self, source, &chunk);
         try compiler.compile();
 
         self.chunk = chunk;
         self.ip = 0;
         return self.run();
+    }
+
+    fn concatenate(self: *Self) !void {
+        const right = self.stack.pop().obj.asString();
+        const left = self.stack.pop().obj.asString();
+        const new_bytes = try std.mem.concat(self.allocator, u8, &[_][]const u8{ left.bytes, right.bytes });
+        const new_str = try Obj.String.takeString(self, new_bytes);
+        self.stack.appendAssumeCapacity(Value{ .obj = &new_str.obj });
     }
 
     pub fn run(self: *Self) error{Runtime}!void {
@@ -112,7 +131,13 @@ pub const Vm = struct {
                         return error.Runtime;
                     }
                 },
-                OpCode.add => try self.binaryOp(.add),
+                OpCode.add => {
+                    if (self.peekStack(0).isString() and self.peekStack(1).isString()) {
+                        self.concatenate() catch unreachable;
+                    } else {
+                        try self.binaryOp(.add);
+                    }
+                },
                 OpCode.substract => try self.binaryOp(.sub),
                 OpCode.multiply => try self.binaryOp(.mul),
                 OpCode.divide => try self.binaryOp(.div),

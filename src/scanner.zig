@@ -115,6 +115,7 @@ test "keywords" {
 }
 
 pub const Token = struct {
+    // TODO(chrde): declare enum in here
     ty: TokenType,
     lexeme: []const u8,
     line: usize = 1,

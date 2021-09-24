@@ -47,7 +47,7 @@ fn simpleInstruction(comptime name: []const u8, offset: usize) usize {
 
 fn constantInstruction(name: []const u8, c: Chunk, offset: usize) usize {
     const constant_idx = c.code.items[offset + 1];
-    const constant = c.constants.items[constant_idx];
+    var constant = c.constants.items[constant_idx];
     std.debug.print("{s:<12} {d:>4} ", .{ name, constant_idx });
     constant.debug();
     return offset + 2;

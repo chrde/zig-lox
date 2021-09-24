@@ -1,15 +1,18 @@
 const std = @import("std");
 const debug = std.debug;
 const Scanner = @import("scanner.zig").Scanner;
+const Vm = @import("vm.zig").Vm;
 const Token = @import("scanner.zig").Token;
 const Chunk = @import("chunk.zig").Chunk;
 const OpCode = @import("chunk.zig").OpCode;
 const Value = @import("value.zig").Value;
+const Obj = @import("object.zig").Obj;
 const TokenType = @import("scanner.zig").TokenType;
 const d = @import("debug.zig");
 
 pub const Compiler = struct {
     const Self = @This();
+    vm: *Vm,
     scanner: Scanner,
     chunk: *Chunk,
     current: Token = undefined,
@@ -17,8 +20,9 @@ pub const Compiler = struct {
     had_error: bool = false,
     panic_mode: bool = false,
 
-    pub fn init(source: []const u8, chunk: *Chunk) Self {
+    pub fn init(vm: *Vm, source: []const u8, chunk: *Chunk) Self {
         return Self{
+            .vm = vm,
             .scanner = Scanner.init(source),
             .chunk = chunk,
         };
@@ -91,8 +95,6 @@ pub const Compiler = struct {
         self.consume(.right_paren, "Expect ')' after expression.");
     }
 
-    // prefix, infix, precedence
-
     fn binary(self: *Self) void {
         const ty = self.previous.ty;
         const prec = ty.infix_prec();
@@ -140,12 +142,21 @@ pub const Compiler = struct {
         }
     }
 
+    fn string(self: *Self) void {
+        const lexeme = self.previous.lexeme;
+        const new_string = Obj.String.copy(self.vm, lexeme) catch unreachable;
+        const obj = Value{ .obj = &new_string.obj };
+        self.emitConstant(obj);
+    }
+
+    // prefix, infix, precedence
     fn parsePrecedence(self: *Self, prec: Precedence) void {
         self.advance();
         switch (self.previous.ty) {
             .left_paren => self.grouping(),
             .minus, .bang => self.unary(),
             .number => self.number(),
+            .string => self.string(),
             .@"false", .@"true", .nil => self.literal(),
             else => return self.errorHere("Expected expression."),
         }
