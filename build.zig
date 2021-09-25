@@ -17,6 +17,13 @@ pub fn build(b: *std.build.Builder) void {
         run_cmd.addArgs(args);
     }
 
+    const tests = b.addTest("src/tests.zig");
+    tests.setBuildMode(mode);
+    tests.setNamePrefix("debug test ");
+    const test_step = b.step("test", "Run all tests in debug mode.");
+    test_step.dependOn(&tests.step);
+
     const run_step = b.step("run", "Run the app");
+    run_step.dependOn(&run_cmd.step);
     run_step.dependOn(&run_cmd.step);
 }

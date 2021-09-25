@@ -1,5 +1,6 @@
 const std = @import("std");
 const expect = @import("std").testing.expect;
+const Vm = @import("vm.zig").Vm;
 const Obj = @import("object.zig").Obj;
 
 pub const ValueTag = enum {
@@ -69,11 +70,7 @@ pub const Value = union(ValueTag) {
                 } else {
                     switch (self.obj.ty) {
                         .string => {
-                            return std.mem.eql(
-                                u8,
-                                self.obj.asString().bytes,
-                                other.obj.asString().bytes,
-                            );
+                            return self.obj == other.obj;
                         },
                     }
                 }
@@ -84,21 +81,26 @@ pub const Value = union(ValueTag) {
 };
 
 test "isFalsey" {
+    var vm = try Vm.init(std.testing.allocator);
+    defer vm.deinit();
+
     try expect(Value.isFalsey(Value{ .nil = {} }));
     try expect(Value.isFalsey(Value{ .bool = false }));
     try expect(!Value.isFalsey(Value{ .bool = true }));
     try expect(!Value.isFalsey(Value{ .number = 0 }));
     try expect(!Value.isFalsey(Value{ .number = 3 }));
 
-    const str = Obj.String.copy(std.testing.allocator, "1") catch unreachable;
-    defer str.deinit(std.testing.allocator);
+    const str = Obj.String.copy(&vm, "1") catch unreachable;
+    defer str.destroy(&vm);
     const str_val = .{ .obj = &str.obj };
     try expect(!Value.isFalsey(str_val));
 }
 
 test "isEqual" {
-    const str = Obj.String.copy(std.testing.allocator, "1") catch unreachable;
-    defer str.deinit(std.testing.allocator);
+    var vm = try Vm.init(std.testing.allocator);
+    defer vm.deinit();
+
+    const str = Obj.String.copy(&vm, "1") catch unreachable;
     const str_val = .{ .obj = &str.obj };
     const vals = [_]Value{
         .{ .bool = true },
@@ -117,12 +119,10 @@ test "isEqual" {
         }
     }
 
-    const str1 = Obj.String.copy(std.testing.allocator, "1") catch unreachable;
-    defer str1.deinit(std.testing.allocator);
+    const str1 = Obj.String.copy(&vm, "1") catch unreachable;
     const str_val1 = .{ .obj = &str1.obj };
 
-    const str2 = Obj.String.copy(std.testing.allocator, "2") catch unreachable;
-    defer str2.deinit(std.testing.allocator);
+    const str2 = Obj.String.copy(&vm, "2") catch unreachable;
     const str_val2 = .{ .obj = &str2.obj };
 
     try expect(!Value.isEqual(str_val, str_val2));

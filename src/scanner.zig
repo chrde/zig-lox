@@ -227,7 +227,13 @@ pub const Scanner = struct {
             return self.errorToken("Unterminated string.");
         } else {
             _ = self.advance();
-            return self.makeToken(.string);
+
+            const token = Token{
+                .ty = .string,
+                .lexeme = self.source[self.start + 1 .. self.current - 1],
+                .line = self.line,
+            };
+            return token;
         }
     }
 

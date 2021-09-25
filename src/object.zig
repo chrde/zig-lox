@@ -15,16 +15,6 @@ pub const Obj = struct {
         return @fieldParentPtr(String, "obj", self);
     }
 
-    pub fn create(vm: *Vm, ty: Type) !*Obj {
-        switch (ty) {
-            .string => {
-                const new = try vm.allocator.create(String);
-                new.obj.ty = ty;
-                return &new.obj;
-            },
-        }
-    }
-
     pub fn destroy(self: *Obj, vm: *Vm) void {
         switch (self.ty) {
             .string => {
@@ -51,24 +41,35 @@ pub const Obj = struct {
         obj: Obj,
         bytes: []const u8,
 
+        fn create(vm: *Vm, bytes: []const u8) !*String {
+            const new = try vm.allocator.create(String);
+            new.obj.ty = .string;
+            new.bytes = bytes;
+            try vm.strings.put(bytes, new);
+            return new;
+        }
+
         pub fn destroy(self: *String, vm: *Vm) void {
             vm.allocator.free(self.bytes);
             vm.allocator.destroy(self);
         }
 
         pub fn takeString(vm: *Vm, bytes: []const u8) !*String {
-            const new_obj = try Obj.create(vm, .string);
-            const str = new_obj.asString();
-            str.bytes = bytes;
-            return str;
+            if (vm.strings.get(bytes)) |interned| {
+                vm.allocator.free(bytes);
+                return interned;
+            } else {
+                return String.create(vm, bytes);
+            }
         }
 
         pub fn copy(vm: *Vm, bytes: []const u8) !*String {
-            const new_bytes = vm.allocator.alloc(u8, bytes.len) catch unreachable;
-            std.mem.copy(u8, new_bytes, bytes);
-            const new_obj = try Obj.create(vm, .string);
-            new_obj.asString().bytes = new_bytes;
-            return new_obj.asString();
+            if (vm.strings.get(bytes)) |interned| {
+                return interned;
+            } else {
+                const new_bytes = try vm.allocator.dupe(u8, bytes);
+                return String.create(vm, new_bytes);
+            }
         }
     };
 };

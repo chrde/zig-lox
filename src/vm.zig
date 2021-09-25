@@ -22,11 +22,13 @@ pub const Vm = struct {
     ip: usize = undefined,
     allocator: *std.mem.Allocator,
     objects: ?*Obj = null,
+    strings: std.StringHashMap(*Obj.String),
     stack: ArrayList(Value),
 
     pub fn init(allocator: *std.mem.Allocator) !Self {
         return Self{
             .allocator = allocator,
+            .strings = std.StringHashMap(*Obj.String).init(allocator),
             .stack = try ArrayList(Value).initCapacity(allocator, stack_max),
         };
     }
@@ -37,6 +39,7 @@ pub const Vm = struct {
 
     pub fn deinit(self: *Self) void {
         self.stack.deinit();
+        self.strings.deinit();
         self.destroyObjects();
     }
 
