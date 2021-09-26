@@ -177,6 +177,14 @@ pub const Vm = struct {
                     };
                     self.stack.appendAssumeCapacity(val);
                 },
+                OpCode.set_global => {
+                    const str = self.readString();
+                    if (self.globals.getEntry(str.bytes)) |entry| {
+                        entry.value_ptr.* = self.peekStack(0);
+                    } else {
+                        return self.runtimeError("Undefined variable '{s}'.", .{str.bytes});
+                    }
+                },
             }
         }
         return;

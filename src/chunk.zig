@@ -21,6 +21,7 @@ pub const OpCode = enum(usize) {
     pop,
     define_global,
     get_global,
+    set_global,
 };
 
 pub const Chunk = struct {

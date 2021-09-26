@@ -39,6 +39,7 @@ pub fn disassembleInstruction(c: Chunk, offset: usize) usize {
         OpCode.pop => simpleInstruction("POP", offset),
         OpCode.define_global => constantInstruction("DEFINE_GLOBAL", c, offset),
         OpCode.get_global => constantInstruction("GET_GLOBAL", c, offset),
+        OpCode.set_global => constantInstruction("SET_GLOBAL", c, offset),
     };
     std.debug.print("\n", .{});
     return result;

@@ -215,24 +215,30 @@ pub const Compiler = struct {
         self.emitConstant(obj);
     }
 
-    fn variable(self: *Self) void {
-        self.namedVariable(self.previous);
+    fn variable(self: *Self, can_assign: bool) void {
+        self.namedVariable(self.previous, can_assign);
     }
 
-    fn namedVariable(self: *Self, token: Token) void {
+    fn namedVariable(self: *Self, token: Token, can_assign: bool) void {
         const global = self.identifierConstant(token) catch unreachable;
-        self.emitBytes(&[2]usize{ @enumToInt(OpCode.get_global), global });
+        if (can_assign and self.match(.equal)) {
+            self.expression();
+            self.emitBytes(&[2]usize{ @enumToInt(OpCode.set_global), global });
+        } else {
+            self.emitBytes(&[2]usize{ @enumToInt(OpCode.get_global), global });
+        }
     }
 
     // prefix, infix, precedence
     fn parsePrecedence(self: *Self, prec: Precedence) void {
         self.advance();
+        const can_assign = @enumToInt(prec) <= @enumToInt(Precedence.assignment);
         switch (self.previous.ty) {
             .left_paren => self.grouping(),
             .minus, .bang => self.unary(),
             .number => self.number(),
             .string => self.string(),
-            .identifier => self.variable(),
+            .identifier => self.variable(can_assign),
             .@"false", .@"true", .nil => self.literal(),
             else => return self.errorHere("Expected expression."),
         }
@@ -246,6 +252,10 @@ pub const Compiler = struct {
                 .plus, .minus, .slash, .star, .equal_equal, .greater, .greater_equal, .less, .less_equal => self.binary(),
                 else => return self.errorHere("Invalid infix operator."),
             }
+        }
+
+        if (can_assign and self.match(.equal)) {
+            self.errorHere("Invalid assignment target.");
         }
     }
 
