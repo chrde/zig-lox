@@ -27,22 +27,78 @@ pub const Compiler = struct {
         };
     }
 
+    fn match(self: *Self, ty: Token.Type) bool {
+        if (!self.check(ty)) return false;
+        self.advance();
+        return true;
+    }
+
+    fn check(self: Self, ty: Token.Type) bool {
+        return self.current.ty == ty;
+    }
+
     pub fn compile(self: *Self) error{Compile}!void {
         self.advance();
-        self.expression();
+        while (!self.match(Token.Type.eof)) {
+            self.declaration();
+        }
         if (self.had_error) {
             return error.Compile;
         }
         return self.end();
     }
 
+    fn printStatement(self: *Self) void {
+        self.expression();
+        self.consume(.semicolon, "Expect ';' after value.");
+        self.emitOp(OpCode.print);
+    }
+
+    fn declaration(self: *Self) void {
+        if (self.match(.@"var")) {
+            self.varDeclaration();
+        } else {
+            self.statement();
+        }
+
+        if (self.panic_mode) {
+            self.synchronize();
+        }
+    }
+
+    fn varDeclaration(self: *Self) void {
+        const global = self.parseVariable("Expect variable name.") catch unreachable;
+        if (self.match(.equal)) {
+            self.expression();
+        } else {
+            self.emitOp(.nil);
+        }
+        self.consume(.semicolon, "Expect ';' after variable declaration.");
+        self.defineVariable(global);
+    }
+
+    fn statement(self: *Self) void {
+        if (self.match(Token.Type.print)) {
+            self.printStatement();
+        } else {
+            self.expressionStatement();
+        }
+    }
+
+    fn expressionStatement(self: *Self) void {
+        self.expression();
+        self.consume(.semicolon, "Expect ';' after expression.");
+        self.emitOp(OpCode.pop);
+    }
+
     fn advance(self: *Self) void {
         self.previous = self.current;
-        while (self.scanner.nextToken()) |token| {
-            if (token.ty == .@"error") {
-                self.errorAtCurrent(token.lexeme);
+        while (true) {
+            const next = self.scanner.nextToken();
+            if (next.ty == .@"error") {
+                self.errorAtCurrent(next.lexeme);
             } else {
-                self.current = token;
+                self.current = next;
                 break;
             }
         }
@@ -62,6 +118,17 @@ pub const Compiler = struct {
 
     pub fn errorHere(self: *Self, message: []const u8) void {
         self.errorAt(self.previous, message);
+    }
+
+    fn synchronize(self: *Self) void {
+        self.panic_mode = false;
+        while (self.current.ty != .eof) {
+            if (self.previous.ty == .semicolon) return;
+            switch (self.current.ty) {
+                .class, .fun, .@"var", .@"for", .@"if", .@"while", .print, .@"return" => break,
+                else => self.advance(),
+            }
+        }
     }
 
     fn errorAt(self: *Self, token: Token, message: []const u8) void {
@@ -126,17 +193,17 @@ pub const Compiler = struct {
         self.parsePrecedence(.unary);
 
         switch (ty) {
-            .minus => self.emitByte(@enumToInt(OpCode.negate)),
-            .bang => self.emitByte(@enumToInt(OpCode.not)),
+            .minus => self.emitOp(OpCode.negate),
+            .bang => self.emitOp(OpCode.not),
             else => unreachable,
         }
     }
 
     fn literal(self: *Self) void {
         switch (self.previous.ty) {
-            .@"false" => self.emitByte(@enumToInt(OpCode.@"false")),
-            .@"true" => self.emitByte(@enumToInt(OpCode.@"true")),
-            .nil => self.emitByte(@enumToInt(OpCode.nil)),
+            .@"false" => self.emitOp(OpCode.@"false"),
+            .@"true" => self.emitOp(OpCode.@"true"),
+            .nil => self.emitOp(OpCode.nil),
             else => unreachable,
         }
     }
@@ -148,6 +215,15 @@ pub const Compiler = struct {
         self.emitConstant(obj);
     }
 
+    fn variable(self: *Self) void {
+        self.namedVariable(self.previous);
+    }
+
+    fn namedVariable(self: *Self, token: Token) void {
+        const global = self.identifierConstant(token) catch unreachable;
+        self.emitBytes(&[2]usize{ @enumToInt(OpCode.get_global), global });
+    }
+
     // prefix, infix, precedence
     fn parsePrecedence(self: *Self, prec: Precedence) void {
         self.advance();
@@ -156,6 +232,7 @@ pub const Compiler = struct {
             .minus, .bang => self.unary(),
             .number => self.number(),
             .string => self.string(),
+            .identifier => self.variable(),
             .@"false", .@"true", .nil => self.literal(),
             else => return self.errorHere("Expected expression."),
         }
@@ -172,6 +249,20 @@ pub const Compiler = struct {
         }
     }
 
+    fn parseVariable(self: *Self, message: []const u8) !usize {
+        self.consume(.identifier, message);
+        return self.identifierConstant(self.previous);
+    }
+
+    fn defineVariable(self: *Self, global: usize) void {
+        self.emitBytes(&[2]usize{ @enumToInt(OpCode.define_global), global });
+    }
+
+    fn identifierConstant(self: *Self, token: Token) !usize {
+        const str = Obj.String.copy(self.vm, token.lexeme) catch unreachable;
+        return try self.makeConstant(Value{ .obj = &str.obj });
+    }
+
     fn end(self: *Self) void {
         self.emitReturn();
         if (!self.had_error) {
@@ -180,19 +271,18 @@ pub const Compiler = struct {
     }
 
     fn emitReturn(self: *Self) void {
-        self.emitByte(@enumToInt(OpCode.@"return"));
+        self.emitOp(OpCode.@"return");
     }
 
     fn emitConstant(self: *Self, value: Value) void {
-        if (self.makeConstant(value)) |constant| {
-            self.emitBytes(&[2]usize{ @enumToInt(OpCode.constant), constant });
-        }
+        const val = self.makeConstant(value) catch unreachable;
+        self.emitBytes(&[2]usize{ @enumToInt(OpCode.constant), val });
     }
 
-    fn makeConstant(self: *Self, value: Value) ?usize {
+    fn makeConstant(self: *Self, value: Value) !usize {
         const constant = self.chunk.addConstant(value) catch |err| {
             self.errorHere("Too many constants in one chunk");
-            return null;
+            return err;
         };
         return constant;
     }
@@ -201,9 +291,13 @@ pub const Compiler = struct {
         self.chunk.write(byte, self.previous.line);
     }
 
+    fn emitOp(self: *Self, op: OpCode) void {
+        self.emitByte(@enumToInt(op));
+    }
+
     fn emitOps(self: *Self, ops: []const OpCode) void {
         for (ops) |op| {
-            self.emitByte(@enumToInt(op));
+            self.emitOp(op);
         }
     }
 

@@ -21,20 +21,24 @@ pub fn disassembleInstruction(c: Chunk, offset: usize) usize {
 
     var op = c.code.items[offset];
     const result = switch (@intToEnum(OpCode, op)) {
-        OpCode.@"return" => simpleInstruction("OP_RETURN", offset),
-        OpCode.constant => constantInstruction("OP_CONSTANT", c, offset),
-        OpCode.negate => simpleInstruction("OP_NEGATE", offset),
-        OpCode.add => simpleInstruction("OP_ADD", offset),
-        OpCode.substract => simpleInstruction("OP_SUBSTRACT", offset),
-        OpCode.multiply => simpleInstruction("OP_MULTIPLE", offset),
-        OpCode.divide => simpleInstruction("OP_DIVIDE", offset),
-        OpCode.@"true" => simpleInstruction("OP_TRUE", offset),
-        OpCode.@"false" => simpleInstruction("OP_FALSE", offset),
-        OpCode.nil => simpleInstruction("OP_NIL", offset),
-        OpCode.not => simpleInstruction("OP_NOT", offset),
-        OpCode.equal => simpleInstruction("OP_EQUAL", offset),
-        OpCode.greater => simpleInstruction("OP_GREATER", offset),
-        OpCode.less => simpleInstruction("OP_LESS", offset),
+        OpCode.@"return" => simpleInstruction("RETURN", offset),
+        OpCode.constant => constantInstruction("CONSTANT", c, offset),
+        OpCode.negate => simpleInstruction("NEGATE", offset),
+        OpCode.add => simpleInstruction("ADD", offset),
+        OpCode.substract => simpleInstruction("SUBSTRACT", offset),
+        OpCode.multiply => simpleInstruction("MULTIPLE", offset),
+        OpCode.divide => simpleInstruction("DIVIDE", offset),
+        OpCode.@"true" => simpleInstruction("TRUE", offset),
+        OpCode.@"false" => simpleInstruction("FALSE", offset),
+        OpCode.nil => simpleInstruction("NIL", offset),
+        OpCode.not => simpleInstruction("NOT", offset),
+        OpCode.equal => simpleInstruction("EQUAL", offset),
+        OpCode.greater => simpleInstruction("GREATER", offset),
+        OpCode.less => simpleInstruction("LESS", offset),
+        OpCode.print => simpleInstruction("PRINT", offset),
+        OpCode.pop => simpleInstruction("POP", offset),
+        OpCode.define_global => constantInstruction("DEFINE_GLOBAL", c, offset),
+        OpCode.get_global => constantInstruction("GET_GLOBAL", c, offset),
     };
     std.debug.print("\n", .{});
     return result;

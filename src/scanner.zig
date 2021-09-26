@@ -12,7 +12,6 @@ test "keywords" {
 }
 
 pub const Token = struct {
-    // TODO(chrde): declare enum in here
     ty: Type,
     lexeme: []const u8,
     line: usize = 1,
@@ -143,11 +142,11 @@ pub const Scanner = struct {
 
     pub fn consume(self: *Self, msg: []const u8) void {}
 
-    pub fn nextToken(self: *Self) ?Token {
+    pub fn nextToken(self: *Self) Token {
         self.skipWhitespace();
         self.start = self.current;
         if (self.isAtEnd()) {
-            return null;
+            return self.makeToken(.eof);
         }
 
         const c = self.advance();
@@ -174,7 +173,7 @@ pub const Scanner = struct {
                 return self.makeToken(ty);
             },
             '=' => {
-                const ty: Token.Type = if (self.match('=')) .equal_equal else .bang;
+                const ty: Token.Type = if (self.match('=')) .equal_equal else .equal;
                 return self.makeToken(ty);
             },
             '<' => {

@@ -17,6 +17,10 @@ pub const OpCode = enum(usize) {
     equal,
     greater,
     less,
+    print,
+    pop,
+    define_global,
+    get_global,
 };
 
 pub const Chunk = struct {

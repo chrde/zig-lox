@@ -22,6 +22,7 @@ pub const Vm = struct {
     ip: usize = undefined,
     allocator: *std.mem.Allocator,
     objects: ?*Obj = null,
+    globals: std.StringHashMap(Value),
     strings: std.StringHashMap(*Obj.String),
     stack: ArrayList(Value),
 
@@ -29,6 +30,7 @@ pub const Vm = struct {
         return Self{
             .allocator = allocator,
             .strings = std.StringHashMap(*Obj.String).init(allocator),
+            .globals = std.StringHashMap(Value).init(allocator),
             .stack = try ArrayList(Value).initCapacity(allocator, stack_max),
         };
     }
@@ -72,9 +74,15 @@ pub const Vm = struct {
         return self.chunk.constants.items[b];
     }
 
+    fn readString(self: *Self) *Obj.String {
+        const b = self.readByte();
+        const v = self.chunk.constants.items[b];
+        return v.obj.asString();
+    }
+
     fn binaryOp(self: *Self, op: BinaryOp) error{Runtime}!void {
         if (!(self.peekStack(0).isNumber() and self.peekStack(1).isNumber())) {
-            return self.runtimeError("Operands must be numbers.");
+            return self.runtimeError("Operands must be numbers.", .{});
         }
 
         const right = self.stack.pop().number;
@@ -116,9 +124,6 @@ pub const Vm = struct {
             self.debugStack();
             switch (@intToEnum(OpCode, self.readByte())) {
                 OpCode.@"return" => {
-                    std.debug.print("\nresult: ", .{});
-                    self.stack.pop().debug();
-                    std.debug.print("\n", .{});
                     break;
                 },
                 OpCode.constant => {
@@ -130,7 +135,7 @@ pub const Vm = struct {
                         const n = self.stack.pop().number;
                         self.stack.appendAssumeCapacity(Value{ .number = -n });
                     } else {
-                        self.runtimeError("Operand must be a number.");
+                        self.runtimeError("Operand must be a number.", .{});
                         return error.Runtime;
                     }
                 },
@@ -156,14 +161,34 @@ pub const Vm = struct {
                     const val = Value{ .bool = left.isEqual(right) };
                     self.stack.appendAssumeCapacity(val);
                 },
+                OpCode.print => {
+                    self.stack.pop().debug();
+                    std.debug.print("\n", .{});
+                },
+                OpCode.pop => _ = self.stack.pop(),
+                OpCode.define_global => {
+                    const str = self.readString();
+                    self.globals.put(str.bytes, self.peekStack(0)) catch unreachable;
+                    _ = self.stack.pop();
+                },
+                OpCode.get_global => {
+                    const str = self.readString();
+                    const val = self.globals.get(str.bytes) orelse {
+                        self.runtimeError("Undefined variable '{s}'.", .{str.bytes});
+                        return error.Runtime;
+                    };
+                    self.stack.appendAssumeCapacity(val);
+                },
             }
         }
         return;
     }
 
-    fn runtimeError(self: *Self, msg: []const u8) void {
+    fn runtimeError(self: *Self, comptime fmt: []const u8, args: anytype) void {
         const b = self.chunk.code.items[self.ip];
         const line = self.chunk.lines.items[b];
-        std.debug.print("{s}\n[line {d}] in script\n", .{ msg, line });
+        std.debug.print(fmt, args);
+        std.debug.print("\n", .{});
+        std.debug.print("[line {d}] in script\n", .{line});
     }
 };
