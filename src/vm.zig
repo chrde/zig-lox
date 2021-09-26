@@ -135,8 +135,7 @@ pub const Vm = struct {
                         const n = self.stack.pop().number;
                         self.stack.appendAssumeCapacity(Value{ .number = -n });
                     } else {
-                        self.runtimeError("Operand must be a number.", .{});
-                        return error.Runtime;
+                        return self.runtimeError("Operand must be a number.", .{});
                     }
                 },
                 OpCode.add => {
@@ -174,8 +173,7 @@ pub const Vm = struct {
                 OpCode.get_global => {
                     const str = self.readString();
                     const val = self.globals.get(str.bytes) orelse {
-                        self.runtimeError("Undefined variable '{s}'.", .{str.bytes});
-                        return error.Runtime;
+                        return self.runtimeError("Undefined variable '{s}'.", .{str.bytes});
                     };
                     self.stack.appendAssumeCapacity(val);
                 },
@@ -184,11 +182,12 @@ pub const Vm = struct {
         return;
     }
 
-    fn runtimeError(self: *Self, comptime fmt: []const u8, args: anytype) void {
+    fn runtimeError(self: *Self, comptime fmt: []const u8, args: anytype) !void {
         const b = self.chunk.code.items[self.ip];
         const line = self.chunk.lines.items[b];
         std.debug.print(fmt, args);
         std.debug.print("\n", .{});
         std.debug.print("[line {d}] in script\n", .{line});
+        return error.Runtime;
     }
 };
