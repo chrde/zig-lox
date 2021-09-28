@@ -63,7 +63,13 @@ pub const Vm = struct {
         std.debug.print("\n", .{});
     }
 
-    fn readByte(self: *Self) usize {
+    fn readShort(self: *Self) u16 {
+        const s = std.mem.readIntSlice(u16, self.chunk.code.items[self.ip..], .Little);
+        self.ip += 2;
+        return s;
+    }
+
+    fn readByte(self: *Self) u8 {
         const b = self.chunk.code.items[self.ip];
         self.ip += 1;
         return b;
@@ -121,8 +127,8 @@ pub const Vm = struct {
 
     pub fn run(self: *Self) error{Runtime}!void {
         while (true) {
-            _ = debug.disassembleInstruction(self.chunk, self.ip);
             self.debugStack();
+            _ = debug.disassembleInstruction(self.chunk, self.ip);
             switch (@intToEnum(OpCode, self.readByte())) {
                 OpCode.@"return" => {
                     break;
@@ -193,6 +199,16 @@ pub const Vm = struct {
                 OpCode.set_local => {
                     const slot = self.readByte();
                     self.stack.items[slot] = self.peekStack(0);
+                },
+                OpCode.jump_if_false => {
+                    const offset = self.readShort();
+                    if (self.peekStack(0).isFalsey()) {
+                        self.ip += offset;
+                    }
+                },
+                OpCode.jump => {
+                    const offset = self.readShort();
+                    self.ip += offset;
                 },
             }
         }

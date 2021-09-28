@@ -26,7 +26,7 @@ pub fn disassembleInstruction(c: Chunk, offset: usize) usize {
         OpCode.negate => simpleInstruction("NEGATE", offset),
         OpCode.add => simpleInstruction("ADD", offset),
         OpCode.substract => simpleInstruction("SUBSTRACT", offset),
-        OpCode.multiply => simpleInstruction("MULTIPLE", offset),
+        OpCode.multiply => simpleInstruction("MULTIPLY", offset),
         OpCode.divide => simpleInstruction("DIVIDE", offset),
         OpCode.@"true" => simpleInstruction("TRUE", offset),
         OpCode.@"false" => simpleInstruction("FALSE", offset),
@@ -42,6 +42,8 @@ pub fn disassembleInstruction(c: Chunk, offset: usize) usize {
         OpCode.set_global => constantInstruction("SET_GLOBAL", c, offset),
         OpCode.get_local => byteInstruction("GET_LOCAL", c, offset),
         OpCode.set_local => byteInstruction("SET_LOCAL", c, offset),
+        OpCode.jump_if_false => jumpInstruction("JUMP_IF_FALSE", 1, c, offset),
+        OpCode.jump => jumpInstruction("JUMP", 1, c, offset),
     };
     std.debug.print("\n", .{});
     return result;
@@ -64,4 +66,10 @@ fn byteInstruction(name: []const u8, c: Chunk, offset: usize) usize {
     const slot = c.code.items[offset + 1];
     std.debug.print("{s:<12} {d:>4} \n", .{ name, slot });
     return offset + 2;
+}
+
+fn jumpInstruction(name: []const u8, sign: i8, c: Chunk, offset: usize) usize {
+    const jump_target = offset + 3 + std.mem.readIntSlice(u16, c.code.items[offset + 1 ..], .Little);
+    std.debug.print("{s:<12} {d:>4} -> {d} \n", .{ name, offset, jump_target });
+    return offset + 3;
 }

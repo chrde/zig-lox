@@ -11,6 +11,7 @@ const d = @import("debug.zig");
 
 const stack_max = 255;
 const uninitialized = -1;
+const jump_bytes = 2;
 
 const Local = struct {
     name: Token,
@@ -81,15 +82,36 @@ pub const Compiler = struct {
     }
 
     fn statement(self: *Self) void {
-        if (self.parser.match(Token.Type.print)) {
+        if (self.parser.match(.print)) {
             self.printStatement();
-        } else if (self.parser.match(Token.Type.left_brace)) {
+        } else if (self.parser.match(.@"if")) {
+            self.ifStatement();
+        } else if (self.parser.match(.left_brace)) {
             self.beginScope();
             self.block();
             self.endScope();
         } else {
             self.expressionStatement();
         }
+    }
+
+    fn ifStatement(self: *Self) void {
+        self.parser.consume(.left_paren, "Expect '(' after 'if'.");
+        self.expression();
+        self.parser.consume(.right_paren, "Expect ')' after condition.");
+
+        const then_jump = self.emitJump(.jump_if_false);
+        self.emitOp(.pop);
+        self.statement();
+        const else_jump = self.emitJump(.jump);
+
+        self.patchJump(then_jump);
+        self.emitOp(.pop);
+
+        if (self.parser.match(.@"else")) {
+            self.statement();
+        }
+        self.patchJump(else_jump);
     }
 
     fn block(self: *Self) void {
@@ -205,9 +227,9 @@ pub const Compiler = struct {
         }
         if (can_assign and self.parser.match(.equal)) {
             self.expression();
-            self.emitBytes(&[2]usize{ @enumToInt(set_op), arg });
+            self.emitBytes(&[2]u8{ @enumToInt(set_op), arg });
         } else {
-            self.emitBytes(&[2]usize{ @enumToInt(get_op), arg });
+            self.emitBytes(&[2]u8{ @enumToInt(get_op), arg });
         }
     }
 
@@ -257,7 +279,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn parseVariable(self: *Self, message: []const u8) !?usize {
+    fn parseVariable(self: *Self, message: []const u8) !?u8 {
         self.parser.consume(.identifier, message);
 
         self.declareVariable();
@@ -289,9 +311,9 @@ pub const Compiler = struct {
         self.locals.appendAssumeCapacity(local);
     }
 
-    fn defineVariable(self: *Self, global: usize) void {
+    fn defineVariable(self: *Self, global: u8) void {
         self.markInitialized();
-        self.emitBytes(&[2]usize{ @enumToInt(OpCode.define_global), global });
+        self.emitBytes(&[2]u8{ @enumToInt(OpCode.define_global), global });
     }
 
     fn markInitialized(self: *Self) void {
@@ -316,7 +338,7 @@ pub const Compiler = struct {
 
     fn emitConstant(self: *Self, value: Value) void {
         const val = self.makeConstant(value) catch unreachable;
-        self.emitBytes(&[2]usize{ @enumToInt(OpCode.constant), val });
+        self.emitBytes(&[2]u8{ @enumToInt(OpCode.constant), val });
     }
 
     fn makeConstant(self: *Self, value: Value) !u8 {
@@ -325,6 +347,22 @@ pub const Compiler = struct {
             return err;
         };
         return constant;
+    }
+
+    fn patchJump(self: *Self, offset: usize) void {
+        const jump = self.chunk.code.items.len - offset - jump_bytes;
+        if (jump > std.math.maxInt(u16)) {
+            self.parser.errorHere("Too much code to jump over.");
+        } else {
+            std.mem.writeIntSlice(u16, self.chunk.code.items[offset .. offset + 2], @intCast(u16, jump), .Little);
+        }
+    }
+
+    fn emitJump(self: *Self, op: OpCode) usize {
+        self.emitOp(op);
+        self.emitByte(0xFF);
+        self.emitByte(0xFF);
+        return self.chunk.code.items.len - jump_bytes;
     }
 
     fn emitOps(self: *Self, ops: []const OpCode) void {
@@ -337,11 +375,11 @@ pub const Compiler = struct {
         self.emitByte(@enumToInt(op));
     }
 
-    fn emitByte(self: *Self, byte: usize) void {
+    fn emitByte(self: *Self, byte: u8) void {
         self.chunk.write(byte, self.parser.previous.line);
     }
 
-    fn emitBytes(self: *Self, bytes: []usize) void {
+    fn emitBytes(self: *Self, bytes: []u8) void {
         for (bytes) |byte| {
             self.emitByte(byte);
         }
