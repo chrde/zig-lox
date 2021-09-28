@@ -57,19 +57,19 @@ fn simpleInstruction(comptime name: []const u8, offset: usize) usize {
 fn constantInstruction(name: []const u8, c: Chunk, offset: usize) usize {
     const constant_idx = c.code.items[offset + 1];
     var constant = c.constants.items[constant_idx];
-    std.debug.print("{s:<12} {d:>4} ", .{ name, constant_idx });
+    std.debug.print("{s:<14} {d:>4} ", .{ name, constant_idx });
     constant.debug();
     return offset + 2;
 }
 
 fn byteInstruction(name: []const u8, c: Chunk, offset: usize) usize {
     const slot = c.code.items[offset + 1];
-    std.debug.print("{s:<12} {d:>4} \n", .{ name, slot });
+    std.debug.print("{s:<14} {d:>4} \n", .{ name, slot });
     return offset + 2;
 }
 
 fn jumpInstruction(name: []const u8, sign: i8, c: Chunk, offset: usize) usize {
     const jump_target = offset + 3 + std.mem.readIntSlice(u16, c.code.items[offset + 1 ..], .Little);
-    std.debug.print("{s:<12} {d:>4} -> {d} \n", .{ name, offset, jump_target });
+    std.debug.print("{s:<14} {d:>4} -> {d}", .{ name, offset, jump_target });
     return offset + 3;
 }

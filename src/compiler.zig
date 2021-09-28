@@ -76,9 +76,7 @@ pub const Compiler = struct {
             self.emitOp(.nil);
         }
         self.parser.consume(.semicolon, "Expect ';' after variable declaration.");
-        if (global) |g| {
-            self.defineVariable(g);
-        }
+        self.defineVariable(global);
     }
 
     fn statement(self: *Self) void {
@@ -311,9 +309,12 @@ pub const Compiler = struct {
         self.locals.appendAssumeCapacity(local);
     }
 
-    fn defineVariable(self: *Self, global: u8) void {
-        self.markInitialized();
-        self.emitBytes(&[2]u8{ @enumToInt(OpCode.define_global), global });
+    fn defineVariable(self: *Self, global: ?u8) void {
+        if (global) |g| {
+            self.emitBytes(&[2]u8{ @enumToInt(OpCode.define_global), g });
+        } else {
+            self.markInitialized();
+        }
     }
 
     fn markInitialized(self: *Self) void {
