@@ -9,18 +9,33 @@ const Obj = @import("object.zig").Obj;
 const Parser = @import("parser.zig").Parser;
 const d = @import("debug.zig");
 
+const stack_max = 255;
+const uninitialized = -1;
+
+const Local = struct {
+    name: Token,
+    depth: i32 = uninitialized,
+};
+
 pub const Compiler = struct {
     const Self = @This();
     vm: *Vm,
     chunk: *Chunk,
+    locals: std.ArrayList(Local),
+    scope_depth: i32 = 0,
     parser: Parser,
 
-    pub fn init(vm: *Vm, source: []const u8, chunk: *Chunk) Self {
+    pub fn init(vm: *Vm, source: []const u8, chunk: *Chunk) !Self {
         return Self{
             .vm = vm,
             .parser = Parser.init(source),
+            .locals = try std.ArrayList(Local).initCapacity(vm.allocator, stack_max),
             .chunk = chunk,
         };
+    }
+
+    pub fn deinit(self: *Self) void {
+        self.locals.deinit();
     }
 
     pub fn compile(self: *Self) error{Compile}!void {
@@ -60,14 +75,40 @@ pub const Compiler = struct {
             self.emitOp(.nil);
         }
         self.parser.consume(.semicolon, "Expect ';' after variable declaration.");
-        self.defineVariable(global);
+        if (global) |g| {
+            self.defineVariable(g);
+        }
     }
 
     fn statement(self: *Self) void {
         if (self.parser.match(Token.Type.print)) {
             self.printStatement();
+        } else if (self.parser.match(Token.Type.left_brace)) {
+            self.beginScope();
+            self.block();
+            self.endScope();
         } else {
             self.expressionStatement();
+        }
+    }
+
+    fn block(self: *Self) void {
+        while (!self.parser.check(.right_brace) and !self.parser.check(.eof)) {
+            self.declaration();
+        }
+        self.parser.consume(.right_brace, "Expect '}' after block.");
+    }
+
+    fn beginScope(self: *Self) void {
+        self.scope_depth += 1;
+    }
+
+    fn endScope(self: *Self) void {
+        self.scope_depth -= 1;
+
+        while (self.locals.items.len > 0 and self.locals.items[self.locals.items.len - 1].depth > self.scope_depth) {
+            self.emitOp(.pop);
+            _ = self.locals.pop();
         }
     }
 
@@ -149,14 +190,41 @@ pub const Compiler = struct {
         self.namedVariable(self.parser.previous, can_assign);
     }
 
-    fn namedVariable(self: *Self, token: Token, can_assign: bool) void {
-        const global = self.identifierConstant(token) catch unreachable;
+    fn namedVariable(self: *Self, name: Token, can_assign: bool) void {
+        var arg: u8 = undefined;
+        var set_op: OpCode = undefined;
+        var get_op: OpCode = undefined;
+        if (try self.resolveLocal(name)) |local| {
+            arg = local;
+            set_op = .set_local;
+            get_op = .get_local;
+        } else {
+            arg = self.identifierConstant(name) catch unreachable;
+            set_op = .set_global;
+            get_op = .get_global;
+        }
         if (can_assign and self.parser.match(.equal)) {
             self.expression();
-            self.emitBytes(&[2]usize{ @enumToInt(OpCode.set_global), global });
+            self.emitBytes(&[2]usize{ @enumToInt(set_op), arg });
         } else {
-            self.emitBytes(&[2]usize{ @enumToInt(OpCode.get_global), global });
+            self.emitBytes(&[2]usize{ @enumToInt(get_op), arg });
         }
+    }
+
+    fn resolveLocal(self: *Self, name: Token) !?u8 {
+        var l: usize = self.locals.items.len;
+        while (l > 0) : (l -= 1) {
+            const local = self.locals.items[l - 1];
+            if (std.mem.eql(u8, local.name.lexeme, name.lexeme)) {
+                if (local.depth == uninitialized) {
+                    self.parser.errorHere("Can't read local variable in its own initializer");
+                    return null;
+                } else {
+                    return @intCast(u8, l - 1);
+                }
+            }
+        }
+        return null;
     }
 
     // prefix, infix, precedence
@@ -189,16 +257,48 @@ pub const Compiler = struct {
         }
     }
 
-    fn parseVariable(self: *Self, message: []const u8) !usize {
+    fn parseVariable(self: *Self, message: []const u8) !?usize {
         self.parser.consume(.identifier, message);
-        return self.identifierConstant(self.parser.previous);
+
+        self.declareVariable();
+        if (self.scope_depth > 0) return null;
+        return try self.identifierConstant(self.parser.previous);
+    }
+
+    fn declareVariable(self: *Self) void {
+        if (self.scope_depth == 0) return;
+        const name = self.parser.previous;
+        var l: usize = self.locals.items.len;
+        while (l > 0) : (l -= 1) {
+            const local = self.locals.items[l - 1];
+            if (local.depth < self.scope_depth) {
+                break;
+            }
+
+            if (std.mem.eql(u8, name.lexeme, local.name.lexeme)) {
+                self.parser.errorHere("Already a variable with this name in this scope.");
+            }
+        }
+        self.addLocal(name);
+    }
+
+    fn addLocal(self: *Self, name: Token) void {
+        const local = Local{
+            .name = name,
+        };
+        self.locals.appendAssumeCapacity(local);
     }
 
     fn defineVariable(self: *Self, global: usize) void {
+        self.markInitialized();
         self.emitBytes(&[2]usize{ @enumToInt(OpCode.define_global), global });
     }
 
-    fn identifierConstant(self: *Self, token: Token) !usize {
+    fn markInitialized(self: *Self) void {
+        self.locals.items[self.locals.items.len - 1].depth = self.scope_depth;
+    }
+
+    fn identifierConstant(self: *Self, token: Token) !u8 {
         const str = Obj.String.copy(self.vm, token.lexeme) catch unreachable;
         return try self.makeConstant(Value{ .obj = &str.obj });
     }
@@ -219,7 +319,7 @@ pub const Compiler = struct {
         self.emitBytes(&[2]usize{ @enumToInt(OpCode.constant), val });
     }
 
-    fn makeConstant(self: *Self, value: Value) !usize {
+    fn makeConstant(self: *Self, value: Value) !u8 {
         const constant = self.chunk.addConstant(value) catch |err| {
             self.parser.errorHere("Too many constants in one chunk");
             return err;

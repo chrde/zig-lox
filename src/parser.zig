@@ -79,7 +79,7 @@ pub const Parser = struct {
         return true;
     }
 
-    fn check(self: Self, ty: Token.Type) bool {
+    pub fn check(self: Self, ty: Token.Type) bool {
         return self.current.ty == ty;
     }
 };

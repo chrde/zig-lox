@@ -64,16 +64,6 @@ pub const Token = struct {
         @"while",
         @"error",
 
-        // const keywords1: []const Type = blk: {
-        //     comptime var kws: []const Type = &.{};
-        //     inline for (std.meta.fields(Type)) |f| {
-        //         if (f.value >= first_keyword) {
-        //             kws = kws ++ &[_]Type {@field(Type, f.name)};
-        //         }
-        //     }
-        //     break :blk kws;
-        // };
-
         pub fn infix_prec(self: Self) ?Precedence {
             return switch (self) {
                 .plus, .minus => .term,
@@ -99,24 +89,6 @@ pub const Token = struct {
             }
             return es;
         }
-
-        // fn keywords() []const Type {
-        //     comptime var keyword_count: usize = 0;
-        //     inline for (std.meta.fields(Type)) |f| {
-        //         if (f.value >= first_keyword) {
-        //             keyword_count += 1;
-        //         }
-        //     }
-        //     const xs: [keyword_count]Type = undefined;
-        //     var current: usize = 0;
-        //     inline for (std.meta.fields(Type)) |f| {
-        //         if (f.value >= first_keyword) {
-        //             xs[current] = @field(Type, f.name);
-        //             current += 1;
-        //         }
-        //     }
-        //     return &xs;
-        // }
     };
 };
 

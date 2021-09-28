@@ -40,6 +40,8 @@ pub fn disassembleInstruction(c: Chunk, offset: usize) usize {
         OpCode.define_global => constantInstruction("DEFINE_GLOBAL", c, offset),
         OpCode.get_global => constantInstruction("GET_GLOBAL", c, offset),
         OpCode.set_global => constantInstruction("SET_GLOBAL", c, offset),
+        OpCode.get_local => byteInstruction("GET_LOCAL", c, offset),
+        OpCode.set_local => byteInstruction("SET_LOCAL", c, offset),
     };
     std.debug.print("\n", .{});
     return result;
@@ -55,5 +57,11 @@ fn constantInstruction(name: []const u8, c: Chunk, offset: usize) usize {
     var constant = c.constants.items[constant_idx];
     std.debug.print("{s:<12} {d:>4} ", .{ name, constant_idx });
     constant.debug();
+    return offset + 2;
+}
+
+fn byteInstruction(name: []const u8, c: Chunk, offset: usize) usize {
+    const slot = c.code.items[offset + 1];
+    std.debug.print("{s:<12} {d:>4} \n", .{ name, slot });
     return offset + 2;
 }

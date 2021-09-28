@@ -73,7 +73,7 @@ fn repl(vm: *Vm) !void {
 test "interpret" {
     var vm = try Vm.init(std.testing.allocator);
     defer vm.deinit();
-    try vm.interpret("a * b = c + d;");
+    try vm.interpret("{ var x = 5; print x; }");
 }
 
 fn runFile(vm: *Vm, path: []const u8, allocator: *std.mem.Allocator) !void {

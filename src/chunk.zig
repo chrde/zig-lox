@@ -22,6 +22,8 @@ pub const OpCode = enum(usize) {
     define_global,
     get_global,
     set_global,
+    get_local,
+    set_local,
 };
 
 pub const Chunk = struct {
@@ -49,8 +51,8 @@ pub const Chunk = struct {
         self.lines.append(line) catch unreachable;
     }
 
-    pub fn addConstant(self: *Self, v: Value) !usize {
+    pub fn addConstant(self: *Self, v: Value) !u8 {
         try self.constants.append(v);
-        return self.constants.items.len - 1;
+        return @intCast(u8, self.constants.items.len - 1);
     }
 };

@@ -7,7 +7,7 @@ const Obj = @import("object.zig").Obj;
 const debug = @import("debug.zig");
 const Compiler = @import("compiler.zig").Compiler;
 
-const stack_max = 256;
+const stack_max = 255;
 
 pub const InterpreterError = error{
     Compile,
@@ -102,7 +102,8 @@ pub const Vm = struct {
         var chunk = Chunk.init(self.allocator);
         defer chunk.deinit();
 
-        var compiler = Compiler.init(self, source, &chunk);
+        var compiler = Compiler.init(self, source, &chunk) catch unreachable;
+        defer compiler.deinit();
         try compiler.compile();
 
         self.chunk = chunk;
@@ -184,6 +185,14 @@ pub const Vm = struct {
                     } else {
                         return self.runtimeError("Undefined variable '{s}'.", .{str.bytes});
                     }
+                },
+                OpCode.get_local => {
+                    const slot = self.readByte();
+                    self.stack.appendAssumeCapacity(self.stack.items[slot]);
+                },
+                OpCode.set_local => {
+                    const slot = self.readByte();
+                    self.stack.items[slot] = self.peekStack(0);
                 },
             }
         }
