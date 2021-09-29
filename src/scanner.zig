@@ -70,6 +70,8 @@ pub const Token = struct {
                 .slash, .star => .factor,
                 .equal_equal => .equality,
                 .greater, .greater_equal, .less, .less_equal => .comparison,
+                .@"and" => .@"and",
+                .@"or" => .@"or",
                 else => null,
             };
         }

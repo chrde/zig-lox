@@ -207,9 +207,19 @@ pub const Vm = struct {
                         self.ip += offset;
                     }
                 },
+                OpCode.jump_if_true => {
+                    const offset = self.readShort();
+                    if (!self.peekStack(0).isFalsey()) {
+                        self.ip += offset;
+                    }
+                },
                 OpCode.jump => {
                     const offset = self.readShort();
                     self.ip += offset;
+                },
+                OpCode.loop => {
+                    const offset = self.readShort();
+                    self.ip -= offset;
                 },
             }
         }

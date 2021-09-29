@@ -25,7 +25,9 @@ pub const OpCode = enum(u8) {
     get_local,
     set_local,
     jump_if_false,
+    jump_if_true,
     jump,
+    loop,
 };
 
 pub const Chunk = struct {

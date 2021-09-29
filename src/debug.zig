@@ -43,7 +43,9 @@ pub fn disassembleInstruction(c: Chunk, offset: usize) usize {
         OpCode.get_local => byteInstruction("GET_LOCAL", c, offset),
         OpCode.set_local => byteInstruction("SET_LOCAL", c, offset),
         OpCode.jump_if_false => jumpInstruction("JUMP_IF_FALSE", 1, c, offset),
+        OpCode.jump_if_true => jumpInstruction("JUMP_IF_TRUE", 1, c, offset),
         OpCode.jump => jumpInstruction("JUMP", 1, c, offset),
+        OpCode.loop => jumpInstruction("LOOP", -1, c, offset),
     };
     std.debug.print("\n", .{});
     return result;
@@ -68,8 +70,9 @@ fn byteInstruction(name: []const u8, c: Chunk, offset: usize) usize {
     return offset + 2;
 }
 
-fn jumpInstruction(name: []const u8, sign: i8, c: Chunk, offset: usize) usize {
-    const jump_target = offset + 3 + std.mem.readIntSlice(u16, c.code.items[offset + 1 ..], .Little);
+fn jumpInstruction(name: []const u8, sign: i32, c: Chunk, offset: usize) usize {
+    const jump = sign * std.mem.readIntSlice(u16, c.code.items[offset + 1 ..], .Little);
+    const jump_target = @intCast(i32, offset + 3) + jump;
     std.debug.print("{s:<14} {d:>4} -> {d}", .{ name, offset, jump_target });
     return offset + 3;
 }

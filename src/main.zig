@@ -73,7 +73,7 @@ fn repl(vm: *Vm) !void {
 test "interpret" {
     var vm = try Vm.init(std.testing.allocator);
     defer vm.deinit();
-    try vm.interpret("if (5 > 3) print 4;");
+    try vm.interpret("var x = 2; while (x > 0) { print x; x = x - 1;} print x;");
     // try vm.interpret("{ var x = 5; print x; }");
 }
 

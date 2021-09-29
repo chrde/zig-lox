@@ -84,12 +84,40 @@ pub const Compiler = struct {
             self.printStatement();
         } else if (self.parser.match(.@"if")) {
             self.ifStatement();
+        } else if (self.parser.match(.@"while")) {
+            self.whileStatement();
         } else if (self.parser.match(.left_brace)) {
             self.beginScope();
             self.block();
             self.endScope();
         } else {
             self.expressionStatement();
+        }
+    }
+
+    fn whileStatement(self: *Self) void {
+        const loop_start = self.chunk.code.items.len;
+        self.parser.consume(.left_paren, "Expect '(' after 'while'.");
+        self.expression();
+        self.parser.consume(.right_paren, "Expect ')' after condition.");
+
+        const exit_jump = self.emitJump(.jump_if_false);
+        self.emitOp(.pop);
+        self.statement();
+        self.emitLoop(loop_start);
+
+        self.patchJump(exit_jump);
+        self.emitOp(.pop);
+    }
+
+    fn emitLoop(self: *Self, start: usize) void {
+        self.emitOp(.loop);
+        const len = self.chunk.code.items.len;
+        const offset = len - start + jump_bytes;
+        if (offset > std.math.maxInt(u16)) {
+            self.parser.errorHere("Loop body too large.");
+        } else {
+            self.emitBytes(std.mem.asBytes(&@intCast(u16, offset)));
         }
     }
 
@@ -268,6 +296,8 @@ pub const Compiler = struct {
             self.parser.advance();
             switch (self.parser.previous.ty) {
                 .plus, .minus, .slash, .star, .equal_equal, .greater, .greater_equal, .less, .less_equal => self.binary(),
+                .@"and" => self.and_(),
+                .@"or" => self.or_(),
                 else => return self.parser.errorHere("Invalid infix operator."),
             }
         }
@@ -275,6 +305,20 @@ pub const Compiler = struct {
         if (can_assign and self.parser.match(.equal)) {
             self.parser.errorHere("Invalid assignment target.");
         }
+    }
+
+    fn or_(self: *Self) void {
+        const jump = self.emitJump(.jump_if_true);
+        self.emitOp(.pop);
+        self.parsePrecedence(.@"or");
+        self.patchJump(jump);
+    }
+
+    fn and_(self: *Self) void {
+        const jump = self.emitJump(.jump_if_false);
+        self.emitOp(.pop);
+        self.parsePrecedence(.@"and");
+        self.patchJump(jump);
     }
 
     fn parseVariable(self: *Self, message: []const u8) !?u8 {
