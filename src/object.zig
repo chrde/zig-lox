@@ -19,7 +19,6 @@ pub const Obj = struct {
         switch (self.ty) {
             .string => {
                 self.asString().destroy(vm);
-                vm.allocator.destroy(self);
             },
         }
     }
@@ -44,7 +43,9 @@ pub const Obj = struct {
         fn create(vm: *Vm, bytes: []const u8) !*String {
             const new = try vm.allocator.create(String);
             new.obj.ty = .string;
+            new.obj.next = vm.objects;
             new.bytes = bytes;
+            vm.objects = &new.obj;
             try vm.strings.put(bytes, new);
             return new;
         }

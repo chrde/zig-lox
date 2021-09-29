@@ -43,6 +43,7 @@ pub const Vm = struct {
         self.stack.deinit();
         self.strings.deinit();
         self.destroyObjects();
+        self.globals.deinit();
     }
 
     fn destroyObjects(self: *Self) void {
