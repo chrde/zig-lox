@@ -1,3 +1,6 @@
 [check]
 command=zig build
 output=quickfix
+
+[fmt]
+command=fd .zig -x zig fmt {}

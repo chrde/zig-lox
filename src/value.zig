@@ -50,6 +50,13 @@ pub const Value = union(ValueTag) {
         }
     }
 
+    pub fn isObj(self: Self) bool {
+        switch (self) {
+            .obj => |_| return true,
+            else => return false,
+        }
+    }
+
     pub fn isFalsey(self: Self) bool {
         return switch (self) {
             .bool => |b| !b,
@@ -69,9 +76,9 @@ pub const Value = union(ValueTag) {
                     return false;
                 } else {
                     switch (self.obj.ty) {
-                        .string => {
-                            return self.obj == other.obj;
-                        },
+                        .string => return self.obj == other.obj,
+                        .fun => return self.obj == other.obj,
+                        .native => return self.obj == other.obj,
                     }
                 }
             },

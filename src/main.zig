@@ -65,15 +65,27 @@ fn repl(vm: *Vm) !void {
             try stdout.writeAll("\nBye bye.\n");
             break;
         };
-        try vm.interpret(line);
-        try stdout.writer().print("you wrote {s}\n", .{line});
+        if (vm.interpret(line)) |_| {
+            try stdout.writer().print("you wrote {s}\n", .{line});
+        } else |err| {
+            std.debug.print("\n{s}", .{err});
+        }
     }
+}
+
+test "run file" {
+    var vm = try Vm.init(std.testing.allocator);
+    defer vm.deinit();
+
+    try runFile(&vm, "code.lox", std.testing.allocator);
 }
 
 test "interpret" {
     var vm = try Vm.init(std.testing.allocator);
     defer vm.deinit();
-    try vm.interpret("var x = 2; while (x > 0) { print x; x = x - 1;} print x;");
+    try vm.interpret("print clock();");
+    // try vm.interpret("for (var x = 2; x > 0; x = x - 1) { print x; } print 0;");
+    // try vm.interpret("var x = 2; while (x > 0) { print x; x = x - 1;} print x;");
     // try vm.interpret("{ var x = 5; print x; }");
 }
 

@@ -46,6 +46,7 @@ pub fn disassembleInstruction(c: Chunk, offset: usize) usize {
         OpCode.jump_if_true => jumpInstruction("JUMP_IF_TRUE", 1, c, offset),
         OpCode.jump => jumpInstruction("JUMP", 1, c, offset),
         OpCode.loop => jumpInstruction("LOOP", -1, c, offset),
+        OpCode.call => byteInstruction("CALL", c, offset),
     };
     std.debug.print("\n", .{});
     return result;
@@ -66,7 +67,7 @@ fn constantInstruction(name: []const u8, c: Chunk, offset: usize) usize {
 
 fn byteInstruction(name: []const u8, c: Chunk, offset: usize) usize {
     const slot = c.code.items[offset + 1];
-    std.debug.print("{s:<14} {d:>4} \n", .{ name, slot });
+    std.debug.print("{s:<14} {d:>4} ", .{ name, slot });
     return offset + 2;
 }
 
