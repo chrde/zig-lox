@@ -46,6 +46,7 @@ pub fn disassembleInstruction(c: Chunk, offset: usize) usize {
         OpCode.jump_if_true => jumpInstruction("JUMP_IF_TRUE", 1, c, offset),
         OpCode.jump => jumpInstruction("JUMP", 1, c, offset),
         OpCode.loop => jumpInstruction("LOOP", -1, c, offset),
+        OpCode.call => byteInstruction("CALL", c, offset),
     };
     std.debug.print("\n", .{});
     return result;

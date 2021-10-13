@@ -28,6 +28,7 @@ pub const OpCode = enum(u8) {
     jump_if_true,
     jump,
     loop,
+    call,
 };
 
 pub const Chunk = struct {
@@ -48,6 +49,10 @@ pub const Chunk = struct {
         self.code.deinit();
         self.constants.deinit();
         self.lines.deinit();
+    }
+
+    pub fn len(self: *Self) usize {
+        return self.code.items.len;
     }
 
     pub fn write(self: *Self, item: u8, line: usize) void {

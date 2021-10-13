@@ -72,6 +72,9 @@ pub const Value = union(ValueTag) {
                         .string => {
                             return self.obj == other.obj;
                         },
+                        .fun => {
+                            return self.obj == other.obj;
+                        },
                     }
                 }
             },

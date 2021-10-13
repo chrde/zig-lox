@@ -2,12 +2,14 @@ const std = @import("std");
 const ArrayList = std.ArrayList;
 const Chunk = @import("chunk.zig").Chunk;
 const OpCode = @import("chunk.zig").OpCode;
+const Parser = @import("parser.zig").Parser;
 const Value = @import("value.zig").Value;
 const Obj = @import("object.zig").Obj;
 const debug = @import("debug.zig");
 const Compiler = @import("compiler.zig").Compiler;
 
-const stack_max = 255;
+const max_stack = 255;
+const max_frames = 255;
 
 pub const InterpreterError = error{
     Compile,
@@ -16,10 +18,15 @@ pub const InterpreterError = error{
 
 const BinaryOp = enum { add, sub, mul, div, greater, less };
 
+const CallFrame = struct {
+    fun: *Obj.Function,
+    ip: usize = 0,
+    fp: usize,
+};
+
 pub const Vm = struct {
     const Self = @This();
-    chunk: Chunk = undefined,
-    ip: usize = undefined,
+    frames: ArrayList(CallFrame),
     allocator: *std.mem.Allocator,
     objects: ?*Obj = null,
     globals: std.StringHashMap(Value),
@@ -31,7 +38,8 @@ pub const Vm = struct {
             .allocator = allocator,
             .strings = std.StringHashMap(*Obj.String).init(allocator),
             .globals = std.StringHashMap(Value).init(allocator),
-            .stack = try ArrayList(Value).initCapacity(allocator, stack_max),
+            .stack = try ArrayList(Value).initCapacity(allocator, max_stack),
+            .frames = try ArrayList(CallFrame).initCapacity(allocator, max_frames),
         };
     }
 
@@ -44,6 +52,7 @@ pub const Vm = struct {
         self.strings.deinit();
         self.destroyObjects();
         self.globals.deinit();
+        self.frames.deinit();
     }
 
     fn destroyObjects(self: *Self) void {
@@ -64,26 +73,37 @@ pub const Vm = struct {
         std.debug.print("\n", .{});
     }
 
+    fn frame(self: *Self) *CallFrame {
+        const x = self.frames.items.len - 1;
+        return &self.frames.items[x];
+    }
+
+    fn chunk(self: *Self) *Chunk {
+        return &self.frame().fun.chunk;
+    }
+
     fn readShort(self: *Self) u16 {
-        const s = std.mem.readIntSlice(u16, self.chunk.code.items[self.ip..], .Little);
-        self.ip += 2;
+        const f = self.frame();
+        const s = std.mem.readIntSlice(u16, self.chunk().code.items[f.ip..], .Little);
+        f.ip += 2;
         return s;
     }
 
     fn readByte(self: *Self) u8 {
-        const b = self.chunk.code.items[self.ip];
-        self.ip += 1;
+        const f = self.frame();
+        const b = self.chunk().code.items[f.ip];
+        f.ip += 1;
         return b;
     }
 
     fn readConstant(self: *Self) Value {
         const b = self.readByte();
-        return self.chunk.constants.items[b];
+        return self.chunk().constants.items[b];
     }
 
     fn readString(self: *Self) *Obj.String {
         const b = self.readByte();
-        const v = self.chunk.constants.items[b];
+        const v = self.chunk().constants.items[b];
         return v.obj.asString();
     }
 
@@ -105,17 +125,41 @@ pub const Vm = struct {
         self.stack.appendAssumeCapacity(result);
     }
 
+    fn call(self: *Self, fun: *Obj.Function) void {
+        const frame = CallFrame {
+        };
+        self.frames.appendAssumeCapacity(frame);
+    }
+
+    fn callValue(self: *Self, callee: Value, arg_count: u8) !void {
+        if (callee.isObj()) {
+            switch (callee.obj.ty) {
+                .fun => {
+                    self.call(callee.obj.asFunction());
+                    return;
+                }
+            }
+        }
+        return self.runtimeError("Can only call functions and classes.");
+    }
+
     pub fn interpret(self: *Self, source: []const u8) InterpreterError!void {
-        var chunk = Chunk.init(self.allocator);
-        defer chunk.deinit();
-
-        var compiler = Compiler.init(self, source, &chunk) catch unreachable;
+        var parser = Parser.init(source);
+        var compiler = Compiler.init(self, &parser, .script) catch unreachable;
         defer compiler.deinit();
-        try compiler.compile();
+        const result = try compiler.compile();
 
-        self.chunk = chunk;
-        self.ip = 0;
-        return self.run();
+        if (result) |fun| {
+            self.stack.appendAssumeCapacity(Value{ .obj = &fun.obj });
+            const first_frame = CallFrame{
+                .fun = fun,
+                .fp = 0,
+            };
+            self.frames.appendAssumeCapacity(first_frame);
+            return self.run();
+        } else {
+            // TODO(chrde): return some error
+        }
     }
 
     fn concatenate(self: *Self) !void {
@@ -129,7 +173,7 @@ pub const Vm = struct {
     pub fn run(self: *Self) error{Runtime}!void {
         while (true) {
             self.debugStack();
-            _ = debug.disassembleInstruction(self.chunk, self.ip);
+            _ = debug.disassembleInstruction(self.chunk().*, self.frame().ip);
             switch (@intToEnum(OpCode, self.readByte())) {
                 OpCode.@"return" => {
                     break;
@@ -204,22 +248,26 @@ pub const Vm = struct {
                 OpCode.jump_if_false => {
                     const offset = self.readShort();
                     if (self.peekStack(0).isFalsey()) {
-                        self.ip += offset;
+                        self.frame().ip += offset;
                     }
                 },
                 OpCode.jump_if_true => {
                     const offset = self.readShort();
                     if (!self.peekStack(0).isFalsey()) {
-                        self.ip += offset;
+                        self.frame().ip += offset;
                     }
                 },
                 OpCode.jump => {
                     const offset = self.readShort();
-                    self.ip += offset;
+                    self.frame().ip += offset;
                 },
                 OpCode.loop => {
                     const offset = self.readShort();
-                    self.ip -= offset;
+                    self.frame().ip -= offset;
+                },
+                OpCode.call => {
+                    const arg_count = self.readByte();
+                    try self.callValue(self.peekStack(arg_count), arg_count);
                 },
             }
         }
@@ -227,8 +275,9 @@ pub const Vm = struct {
     }
 
     fn runtimeError(self: *Self, comptime fmt: []const u8, args: anytype) !void {
-        const b = self.chunk.code.items[self.ip];
-        const line = self.chunk.lines.items[b];
+        const f = self.frame();
+        const b = self.chunk().code.items[f.ip];
+        const line = self.chunk().lines.items[b];
         std.debug.print(fmt, args);
         std.debug.print("\n", .{});
         std.debug.print("[line {d}] in script\n", .{line});

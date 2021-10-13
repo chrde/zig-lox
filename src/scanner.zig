@@ -45,6 +45,7 @@ pub const Token = struct {
         number,
         // Other
         eof,
+        __priv,
         // Keywords.
         @"and" = first_keyword,
         class,
@@ -72,15 +73,17 @@ pub const Token = struct {
                 .greater, .greater_equal, .less, .less_equal => .comparison,
                 .@"and" => .@"and",
                 .@"or" => .@"or",
+                .left_paren => .call,
                 else => null,
             };
         }
 
-        pub fn prefix_prec(self: Self) Precedence {
-            return switch (self) {
-                else => unreachable,
-            };
-        }
+        // pub fn prefix_prec(self: Self) Precedence {
+        //     return switch (self) {
+        //         .left_paren => .call,
+        //         else => unreachable,
+        //     };
+        // }
 
         fn keywords() []const Type {
             comptime var es: []const Type = &.{};

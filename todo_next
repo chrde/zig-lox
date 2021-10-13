@@ -1,0 +1,34 @@
+continue in `A
+we are implementing function calls. compiler is ready, vm is almost there
+
+at this point we have to create a call frame, and adjust the frame pointer so that
+the stack refers to locals from the function args. But this is problematic since
+I use the stack(arraylist) directly everywhere.
+One idea is to move the stack to its own struct, e.g:
+```
+const Stack = struct {
+    slots: ArrayList(Value),
+    frames: ArrayList(CallFrame),
+
+    pub fn peek(self: *Self, depth: usize) Value {
+    }
+
+    pub fn deinit(self: *Self) void {
+    }
+
+    pub fn debug(self: *Self) void {
+    }
+
+    pub fn pop(self: *Self) Value {
+    }
+
+    pub fn push(self: *Self, val: Value) void {
+    }
+
+    pub fn ip(self: *Self) usize {
+        // return ip of the last call frame
+    }
+};
+```
+
+where every operation takes into account the 'current' stack frame's fp
